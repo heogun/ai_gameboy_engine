@@ -70,6 +70,7 @@ def request_spec(
     system_prompt: str = SYSTEM_PROMPT,
     timeout: float = 90,
 ) -> Any:
+    print(f"[INFO] OpenRouter에 게임 스펙 요청 중... (모델: {model})", flush=True)
     url = base_url.rstrip("/") + "/chat/completions"
     payload = {
         "model": model,
@@ -96,6 +97,7 @@ def request_spec(
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
+            print("[INFO] 응답 수신 중...", flush=True)
             response_body = response.read().decode("utf-8")
     except urllib.error.HTTPError as error:
         details = error.read().decode("utf-8", errors="replace")
@@ -112,7 +114,10 @@ def request_spec(
         raise GenerationError("The model API returned an unexpected response shape.") from error
     if not isinstance(content, str):
         raise GenerationError("The model API did not return text content.")
+    print("[INFO] JSON 파싱 중...", flush=True)
     try:
-        return json.loads(content)
+        result = json.loads(content)
+        print("[INFO] 스펙 생성 완료", flush=True)
+        return result
     except json.JSONDecodeError as error:
         raise GenerationError("The model response was not valid JSON.") from error

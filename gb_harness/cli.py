@@ -141,11 +141,14 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
 
     try:
         if existing_spec and not args.guide:
+            print("[INFO] 기존 game_spec.json을 불러오는 중...", flush=True)
             spec = validate_spec(json.loads((args.output / "game_spec.json").read_text(encoding="utf-8")))
             files = [args.output / "game_spec.json", args.output / "main.c"]
         else:
             if not api_key:
                 raise GenerationError("Set OPENROUTER_API_KEY to generate the game specification.")
+            print(f"[INFO] 타겟: {'Game Boy Color' if args.platform=='gbc' else 'Game Boy'}", flush=True)
+            print(f"[INFO] 요청: {args.request}", flush=True)
             system_prompt = (
                 GBC_SYSTEM_PROMPT if args.platform == "gbc" else SYSTEM_PROMPT
             )
@@ -158,9 +161,11 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
                     system_prompt=system_prompt,
                 )
             )
+        print("[INFO] 프로젝트 파일 생성 중...", flush=True)
         files = write_project(spec, args.output, args.platform)
 
         if args.guide:
+            print("[INFO] GUIDE.md 생성 중...", flush=True)
             guide_path = write_guide(spec, args.output, args.platform)
             files.append(guide_path)
             print("가이드 생성 완료")
