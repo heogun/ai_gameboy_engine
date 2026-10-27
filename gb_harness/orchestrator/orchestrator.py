@@ -74,6 +74,13 @@ class Orchestrator:
         self.output_dir = output_dir
         self.state = ProjectState(output_dir)
         self.registry = SymbolRegistry()
+        reg_data = self.state.data.get("registry")
+        if isinstance(reg_data, dict):
+            try:
+                self.registry.import_from(reg_data)
+                print(f"[REG] 기존 심볼 레지스트리 복원: {len(self.registry.all())}개", flush=True)
+            except Exception as e:
+                print(f"[REG][WARN] 레지스트리 복원 실패: {e}", flush=True)
         self.task_graph = TaskGraph(game_type="topdown_rpg")
         self.compiler = ContextCompiler(self.state, self.registry)
         self.validators = ValidationPipeline(self.registry)
@@ -253,6 +260,7 @@ class Orchestrator:
                         self.registry.register("dialog", dlg["dialog_id"], dlg)
                     except Exception:
                         pass
+        self.state.data["registry"] = self.registry.export()
         self.state.save()
 
     def _write_summary(self) -> None:
