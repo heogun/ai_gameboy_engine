@@ -8,12 +8,13 @@ from pathlib import Path
 
 from .client import GenerationError, generate_image, request_spec
 from .generator import build_rom, generate_asset_sources, run_emulator, write_project
+from .guide import write_guide
 from .prompt import GBC_SYSTEM_PROMPT, SYSTEM_PROMPT
 from .schema import SpecValidationError, validate_spec
 
 
-DEFAULT_API_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_API_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_MODEL = "deepseek/deepseek-chat-v3-0324:free"
 DEFAULT_IMAGE_MODEL = "gpt-image-1"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_EMULATOR = str(
@@ -40,18 +41,23 @@ def build_parser(default_platform: str = "gb") -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default=os.environ.get("OPENAI_MODEL", DEFAULT_MODEL),
+        default=os.environ.get("OPENROUTER_MODEL") or os.environ.get("OPENAI_MODEL") or DEFAULT_MODEL,
         help=f"Chat-completions model (default: {DEFAULT_MODEL}).",
     )
     parser.add_argument(
         "--api-base-url",
-        default=os.environ.get("OPENAI_BASE_URL", DEFAULT_API_BASE_URL),
-        help="OpenAI-compatible API base URL (default: https://api.openai.com/v1).",
+        default=os.environ.get("OPENROUTER_BASE_URL") or os.environ.get("OPENAI_BASE_URL") or DEFAULT_API_BASE_URL,
+        help="OpenAI-compatible API base URL (default: https://openrouter.ai/api/v1).",
     )
     parser.add_argument(
         "--image-model",
         default=os.environ.get("OPENAI_IMAGE_MODEL", DEFAULT_IMAGE_MODEL),
         help=f"Image generation model (default: {DEFAULT_IMAGE_MODEL}).",
+    )
+    parser.add_argument(
+        "--guide",
+        action="store_true",
+        help="Generate spec + asset prompts + GUIDE.md only (skip image generation/build/run).",
     )
     parser.add_argument(
         "--generate-images",
@@ -102,28 +108,44 @@ def main_gbc(argv: list[str] | None = None) -> int:
 
 def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
     args = build_parser(default_platform).parse_args(argv)
+    if args.guide and (args.build or args.run):
+        print("Error: --guide cannot be used with --build or --run.", file=sys.stderr)
+        return 2
     if (args.emulator_debugger or args.gdb_server) and not args.run:
         print("Error: debugger options require --run.", file=sys.stderr)
         return 2
     if args.emulator_debugger and args.gdb_server:
         print("Error: choose either --emulator-debugger or --gdb-server.", file=sys.stderr)
         return 2
-    api_key = os.environ.get("OPENAI_API_KEY")
+
+    api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("GB_API_KEY")
     existing_spec = (args.build or args.run) and (args.output / "game_spec.json").is_file()
+
     if not api_key and (args.generate_images or not existing_spec):
-        print("Error: set OPENAI_API_KEY before running the generator.", file=sys.stderr)
+        print("Error: set OPENROUTER_API_KEY to generate the game specification.", file=sys.stderr)
         return 2
+    if args.guide and not api_key and not existing_spec:
+        print("Error: set OPENROUTER_API_KEY to generate the guide.", file=sys.stderr)
+        return 2
+
+    if args.guide and (args.request is None or not args.request.strip()) and not existing_spec:
+        try:
+            print("어떤 Game Boy 게임을 만들고 싶나요? (자연어로 설명해주세요)")
+            args.request = input("> ").strip()
+        except EOFError:
+            pass
+
     if (args.request is None or not args.request.strip()) and not existing_spec:
         print("Error: provide a game request unless building an existing project.", file=sys.stderr)
         return 2
 
     try:
-        if existing_spec:
+        if existing_spec and not args.guide:
             spec = validate_spec(json.loads((args.output / "game_spec.json").read_text(encoding="utf-8")))
             files = [args.output / "game_spec.json", args.output / "main.c"]
         else:
             if not api_key:
-                raise GenerationError("Set OPENAI_API_KEY to generate the game specification.")
+                raise GenerationError("Set OPENROUTER_API_KEY to generate the game specification.")
             system_prompt = (
                 GBC_SYSTEM_PROMPT if args.platform == "gbc" else SYSTEM_PROMPT
             )
@@ -137,6 +159,18 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
                 )
             )
         files = write_project(spec, args.output, args.platform)
+
+        if args.guide:
+            guide_path = write_guide(spec, args.output, args.platform)
+            files.append(guide_path)
+            print("가이드 생성 완료")
+            print(f"  {guide_path}")
+            print("")
+            print("다음 단계:")
+            print(f"1. {args.output}/GUIDE.md 를 열어 이미지 프롬프트를 확인")
+            print(f"2. ChatGPT/Gemini/Ideogram 등에서 PNG 생성 후 {args.output}/assets/ 에 asset_id.png 로 저장")
+            print(f"3. python -m {'gbc_harness' if args.platform=='gbc' else 'gb_harness'} --build --run")
+            return 0
 
         if args.generate_images:
             for asset in spec["graphics_assets"]:

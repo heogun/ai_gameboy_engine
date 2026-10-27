@@ -16,11 +16,13 @@ class GenerationError(RuntimeError):
 def generate_image(
     prompt: str,
     output_path: Path,
-    api_key: str,
-    model: str,
-    base_url: str,
+    api_key: str | None = None,
+    model: str = "gpt-image-1",
+    base_url: str = "https://api.openai.com/v1",
     timeout: float = 180,
 ) -> None:
+    if not api_key:
+        raise GenerationError("Set an API key to generate images with the image backend.")
     url = base_url.rstrip("/") + "/images/generations"
     payload = {
         "model": model,
@@ -60,9 +62,9 @@ def generate_image(
 
 def request_spec(
     user_request: str,
-    api_key: str,
-    model: str,
-    base_url: str,
+    api_key: str | None = None,
+    model: str = "deepseek/deepseek-chat-v3-0324:free",
+    base_url: str = "https://openrouter.ai/api/v1",
     system_prompt: str = SYSTEM_PROMPT,
     timeout: float = 90,
 ) -> Any:
@@ -76,13 +78,18 @@ def request_spec(
             {"role": "user", "content": user_request},
         ],
     }
+    headers = {
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://github.com/heogun/ai_gameboy_engine",
+        "X-Title": "gbdk-game-harness",
+    }
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
+        headers=headers,
         method="POST",
     )
     try:
