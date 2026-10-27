@@ -14,7 +14,7 @@ from .schema import SpecValidationError, validate_spec
 
 
 DEFAULT_API_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "recursive/flint-v1.0:free"
+DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free"
 DEFAULT_IMAGE_MODEL = "gpt-image-1"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_EMULATOR = str(
