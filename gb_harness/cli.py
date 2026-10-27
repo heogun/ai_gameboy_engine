@@ -9,6 +9,7 @@ from pathlib import Path
 from .client import GenerationError, generate_image, request_spec
 from .generator import build_rom, generate_asset_sources, run_emulator, write_project
 from .guide import write_guide
+from .orchestrator import Orchestrator
 from .prompt import GBC_SYSTEM_PROMPT, SYSTEM_PROMPT
 from .schema import SpecValidationError, validate_spec
 
@@ -58,6 +59,11 @@ def build_parser(default_platform: str = "gb") -> argparse.ArgumentParser:
         "--guide",
         action="store_true",
         help="Generate spec + asset prompts + GUIDE.md only (skip image generation/build/run).",
+    )
+    parser.add_argument(
+        "--orchestrate",
+        action="store_true",
+        help="Use engine-fixed orchestration: chunked data generation with validation pipeline.",
     )
     parser.add_argument(
         "--generate-images",
@@ -111,6 +117,9 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
     if args.guide and (args.build or args.run):
         print("Error: --guide cannot be used with --build or --run.", file=sys.stderr)
         return 2
+    if args.orchestrate and (args.build or args.run or args.guide or args.generate_images):
+        print("Error: --orchestrate cannot be used with other action flags.", file=sys.stderr)
+        return 2
     if (args.emulator_debugger or args.gdb_server) and not args.run:
         print("Error: debugger options require --run.", file=sys.stderr)
         return 2
@@ -121,12 +130,20 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
     api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("GB_API_KEY")
     existing_spec = (args.build or args.run) and (args.output / "game_spec.json").is_file()
 
-    if not api_key and (args.generate_images or not existing_spec):
+    if not api_key and (args.generate_images or not existing_spec or args.orchestrate):
         print("Error: set OPENROUTER_API_KEY to generate the game specification.", file=sys.stderr)
         return 2
+
     if args.guide and not api_key and not existing_spec:
         print("Error: set OPENROUTER_API_KEY to generate the guide.", file=sys.stderr)
         return 2
+
+    if args.orchestrate and (args.request is None or not args.request.strip()):
+        try:
+            print("어떤 Game Boy 게임을 만들고 싶나요? (자연어로 설명해주세요)")
+            args.request = input("> ").strip()
+        except EOFError:
+            pass
 
     if args.guide and (args.request is None or not args.request.strip()) and not existing_spec:
         try:
@@ -135,11 +152,17 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
         except EOFError:
             pass
 
-    if (args.request is None or not args.request.strip()) and not existing_spec:
+    if (args.request is None or not args.request.strip()) and not existing_spec and not args.orchestrate:
         print("Error: provide a game request unless building an existing project.", file=sys.stderr)
         return 2
 
+    args.api_key = api_key
+
     try:
+        if args.orchestrate:
+            orch = Orchestrator(args, args.output)
+            return orch.run()
+
         if existing_spec and not args.guide:
             print("[INFO] 기존 game_spec.json을 불러오는 중...", flush=True)
             spec = validate_spec(json.loads((args.output / "game_spec.json").read_text(encoding="utf-8")))
