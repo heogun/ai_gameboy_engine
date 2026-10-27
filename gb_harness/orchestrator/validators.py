@@ -110,13 +110,19 @@ class ValidationPipeline:
         return len(errors) == 0, errors
 
     def validate_all(self, data: Any, schema: str, state: Any) -> tuple[bool, list[str]]:
+        print(f"[VAL] 다단계 검증 시작 (schema={schema})", flush=True)
         all_errors: list[str] = []
         ok, errs = self.validate_element(data, schema)
+        print(f"[VAL] 1) 요소검증: {'OK' if ok else 'FAIL'} ({len(errs)} errors)", flush=True)
         all_errors.extend(errs)
         ok2, errs2 = self.validate_local(data)
+        print(f"[VAL] 2) 지역검증: {'OK' if ok2 else 'FAIL'} ({len(errs2)} errors)", flush=True)
         all_errors.extend(errs2)
         ok3, errs3 = self.validate_reference(data, state)
+        print(f"[VAL] 3) 참조검증: {'OK' if ok3 else 'FAIL'} ({len(errs3)} errors)", flush=True)
         all_errors.extend(errs3)
         ok4, errs4 = self.validate_graph(state)
+        print(f"[VAL] 4) 그래프검증: {'OK' if ok4 else 'FAIL'} ({len(errs4)} errors)", flush=True)
         all_errors.extend(errs4)
+        print(f"[VAL] 검증 완료: {'ALL OK' if len(all_errors) == 0 else f'{len(all_errors)} errors'}", flush=True)
         return len(all_errors) == 0, all_errors

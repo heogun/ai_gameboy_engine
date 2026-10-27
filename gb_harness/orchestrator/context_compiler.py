@@ -13,6 +13,7 @@ class ContextCompiler:
 
     def compile(self, task: dict[str, Any]) -> dict[str, Any]:
         task_id = task["id"]
+        print(f"[CTX] 컨텍스트 컴파일 시작: {task_id}", flush=True)
         base = {
             "task": task_id,
             "request": self.state.get("request"),
@@ -50,6 +51,7 @@ class ContextCompiler:
             base["existing"] = {k: self.state.data.get(k) for k in ["maps", "npcs", "entities", "assets"] if self.state.data.get(k)}
 
         base["symbols"] = self.registry.export()["symbols"]
+        print(f"[CTX] 컨텍스트 컴파일 완료: symbols={len(base['symbols'])}, existing_keys={list(base['existing'].keys())}", flush=True)
         return base
 
     def _constraints(self) -> dict[str, Any]:

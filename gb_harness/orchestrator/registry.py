@@ -15,6 +15,7 @@ class SymbolRegistry:
         if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", symbol_id):
             raise ValueError(f"Invalid symbol id: {symbol_id}")
         self.symbols[key] = {"type": symbol_type, "id": symbol_id, "meta": meta or {}}
+        print(f"[REG] 심볼 등록: {key}", flush=True)
 
     def has(self, symbol_type: str, symbol_id: str) -> bool:
         return f"{symbol_type}:{symbol_id}" in self.symbols

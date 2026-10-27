@@ -37,8 +37,13 @@ class ProjectState:
                 loaded = json.loads(self.state_path.read_text(encoding="utf-8"))
                 if isinstance(loaded, dict):
                     self.data = loaded
-            except (json.JSONDecodeError, OSError):
-                pass
+                    print(f"[STATE] 기존 상태 로드: {self.state_path}", flush=True)
+                else:
+                    print("[STATE] 상태 파일 형식이 올바르지 않아 초기화합니다.", flush=True)
+            except (json.JSONDecodeError, OSError) as e:
+                print(f"[STATE] 상태 로드 실패, 초기화합니다: {e}", flush=True)
+        else:
+            print("[STATE] 새 프로젝트 상태 초기화", flush=True)
 
     def save(self) -> Path:
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -46,6 +51,7 @@ class ProjectState:
             json.dumps(self.data, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
+        print(f"[STATE] 상태 저장: {self.state_path}", flush=True)
         return self.state_path
 
     def get(self, key: str, default: Any = None) -> Any:

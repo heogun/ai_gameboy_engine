@@ -44,12 +44,19 @@ class Orchestrator:
 
     def run(self) -> int:
         print("[ORCH] 오케스트레이션 모드 시작", flush=True)
+        print(f"[ORCH] 출력 디렉토리: {self.output_dir}", flush=True)
+        print(f"[ORCH] 플랫폼: {self.args.platform}, 모델: {self.args.model}", flush=True)
         if not self.state.get("request"):
             self.state.set("request", self.args.request or "")
             self.state.set("platform", self.args.platform)
             self.state.save()
+            print(f"[ORCH] 요청 저장: {self.args.request}", flush=True)
+        else:
+            print(f"[ORCH] 기존 요청 불러옴: {self.state.get('request')}", flush=True)
 
         completed = set(self.state.get("completed_tasks") or [])
+        print(f"[ORCH] 완료된 작업: {sorted(list(completed)) or '[]'}", flush=True)
+        print(f"[ORCH] 태스크 그래프: {[t['id'] for t in self.task_graph.tasks]}", flush=True)
         max_iterations = 50
         iterations = 0
 
@@ -64,13 +71,14 @@ class Orchestrator:
                 break
 
             task_id = task["id"]
-            print(f"[ORCH] 작업 진행: {task_id} (agent: {task['agent']})", flush=True)
+            print(f"[ORCH] 다음 작업 선택: {task_id} (의존성: {task.get('depends_on')}, agent: {task['agent']})", flush=True)
             ctx = self.compiler.compile(task)
             schema = task["schema"]
 
             prompt = self._build_task_prompt(task, ctx)
             api_key = self.args.api_key if hasattr(self.args, "api_key") else None
 
+            print(f"[ORCH] LLM 요청 전송 (스키마: {schema})", flush=True)
             try:
                 result = request_spec(
                     prompt,
@@ -79,6 +87,7 @@ class Orchestrator:
                     self.args.api_base_url,
                     system_prompt=ORCHESTRATOR_SYSTEM_PROMPT,
                 )
+                print("[ORCH] LLM 응답 수신", flush=True)
             except Exception as e:
                 print(f"[ORCH][ERR] 요청 실패: {e}", flush=True)
                 break
@@ -87,7 +96,7 @@ class Orchestrator:
             repair_count = 0
             while not ok and repair_count < 3:
                 repair_count += 1
-                print(f"[ORCH] 검증 실패 ({repair_count}/3), 수정 요청 중...", flush=True)
+                print(f"[ORCH][REPAIR] 수정보완 시도 {repair_count}/3", flush=True)
                 repair_prompt = self._build_repair_prompt(task, ctx, result, errs)
                 try:
                     result = request_spec(
@@ -97,6 +106,7 @@ class Orchestrator:
                         self.args.api_base_url,
                         system_prompt=ORCHESTRATOR_SYSTEM_PROMPT,
                     )
+                    print("[ORCH] 수정 응답 수신", flush=True)
                     ok, errs = self.validators.validate_all(result, schema, self.state)
                 except Exception as e:
                     print(f"[ORCH][ERR] 수정 요청 실패: {e}", flush=True)
@@ -106,13 +116,15 @@ class Orchestrator:
                 print(f"[ORCH][ERR] 검증 최종 실패: {errs}", flush=True)
                 break
 
+            print("[ORCH] 결과 적용 중...", flush=True)
             self._apply_result(task_id, result)
+            print("[ORCH] 심볼 등록 중...", flush=True)
             self._register_symbols(task_id, result)
             completed.add(task_id)
             self.state.set("completed_tasks", list(completed))
             self.state.add_history({"task": task_id, "ok": True})
             self.state.save()
-            print(f"[ORCH] 작업 완료: {task_id}", flush=True)
+            print(f"[ORCH] 작업 완료: {task_id} (진행률: {len(completed)}/{len(self.task_graph.tasks)})", flush=True)
 
         print("[ORCH] 오케스트레이션 완료", flush=True)
         self._write_summary()
