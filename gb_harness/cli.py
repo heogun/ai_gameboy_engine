@@ -9,7 +9,7 @@ from pathlib import Path
 from .client import GenerationError, generate_image, request_spec
 from .generator import build_rom, generate_asset_sources, run_emulator, write_project
 from .guide import write_guide
-from .orchestrator import Orchestrator
+from .orchestrator import GBDataConverter, Orchestrator
 from .prompt import GBC_SYSTEM_PROMPT, SYSTEM_PROMPT
 from .schema import SpecValidationError, validate_spec
 
@@ -66,6 +66,11 @@ def build_parser(default_platform: str = "gb") -> argparse.ArgumentParser:
         help="Use engine-fixed orchestration: chunked data generation with validation pipeline.",
     )
     parser.add_argument(
+        "--orchestrate-convert",
+        action="store_true",
+        help="Convert orchestrator_state.json to Game Boy data with strict hardware validation.",
+    )
+    parser.add_argument(
         "--generate-images",
         action="store_true",
         help="Generate asset PNGs through the OpenAI Images API.",
@@ -117,8 +122,11 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
     if args.guide and (args.build or args.run):
         print("Error: --guide cannot be used with --build or --run.", file=sys.stderr)
         return 2
-    if args.orchestrate and (args.build or args.run or args.guide or args.generate_images):
+    if args.orchestrate and (args.build or args.run or args.guide or args.generate_images or args.orchestrate_convert):
         print("Error: --orchestrate cannot be used with other action flags.", file=sys.stderr)
+        return 2
+    if args.orchestrate_convert and (args.build or args.run or args.guide or args.generate_images or args.orchestrate):
+        print("Error: --orchestrate-convert cannot be used with other action flags.", file=sys.stderr)
         return 2
     if (args.emulator_debugger or args.gdb_server) and not args.run:
         print("Error: debugger options require --run.", file=sys.stderr)
@@ -152,7 +160,7 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
         except EOFError:
             pass
 
-    if (args.request is None or not args.request.strip()) and not existing_spec and not args.orchestrate:
+    if (args.request is None or not args.request.strip()) and not existing_spec and not args.orchestrate and not args.orchestrate_convert:
         print("Error: provide a game request unless building an existing project.", file=sys.stderr)
         return 2
 
@@ -162,6 +170,17 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
         if args.orchestrate:
             orch = Orchestrator(args, args.output)
             return orch.run()
+
+        if args.orchestrate_convert:
+            conv = GBDataConverter(args.output, args.platform)
+            result = conv.convert()
+            if "maps_c" not in result:
+                print("Error: Hardware validation failed. See orchestrator_converted/hardware_report.json", file=sys.stderr)
+                return 1
+            print("[CONV] 변환 완료. 생성된 파일:")
+            for k, v in result.items():
+                print(f"  {v}")
+            return 0
 
         if existing_spec and not args.guide:
             print("[INFO] 기존 game_spec.json을 불러오는 중...", flush=True)
