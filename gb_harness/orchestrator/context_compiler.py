@@ -57,13 +57,20 @@ class ContextCompiler:
     def _constraints(self) -> dict[str, Any]:
         return {
             "gb_hardware": {
-                "sprites_max": 40,
-                "sprites_per_line": 10,
-                "bg_palettes_max": 8,
-                "obj_palettes_max": 8,
-                "colors_per_palette": 4,
+                "screen": {"w": 160, "h": 144},
+                "sprites": {"max_total": 40, "max_per_scanline": 10, "default_size": "8x8", "critical": True},
+                "background": {"max_palettes_dmg": 1, "max_palettes_cgb": 8, "colors_per_palette": 4},
+                "objects": {"max_palettes_cgb": 8, "colors_per_palette": 4},
+                "dmg": {"shades": 4},
+                "cgb": {"max_colors_per_palette": 4, "bit_depth": 15},
+                "tiles": {"note": "BG and OBJ tiles share VRAM. Keep counts minimal."},
+                "window": {"available": True, "note": "Use sparingly for UI/dialogue."},
+                "banking": {"note": "Large data may require MBC banking."},
+                "vblank": {"note": "Respect VBlank timing for updates."},
             },
             "schema_strict": True,
             "no_engine_edit": True,
             "data_only": True,
+            "prefer_tilemap": True,
+            "sprite_budget_enforced": True,
         }

@@ -109,6 +109,31 @@ class ValidationPipeline:
                     errors.append(f"Graph: dialog {dlg_id} references unknown npc {npc_id}")
         return len(errors) == 0, errors
 
+    def validate_hardware(self, data: Any) -> tuple[bool, list[str]]:
+        errors: list[str] = []
+        warnings: list[str] = []
+        if isinstance(data, dict):
+            if "npcs" in data and isinstance(data["npcs"], list):
+                npc_count = len(data["npcs"])
+                if npc_count > 12:
+                    errors.append(f"Hardware violation: {npc_count} NPCs as sprites likely exceed OAM budget (max 40 total, max 10 per scanline). Reduce or use tilemap.")
+                elif npc_count > 8:
+                    warnings.append(f"Hardware warning: {npc_count} NPCs may approach OAM per-scanline limit (10). Keep spread across Y positions.")
+            if "entities" in data and isinstance(data["entities"], list):
+                ent_count = len(data["entities"])
+                if ent_count > 12:
+                    errors.append(f"Hardware violation: {ent_count} entities as sprites likely exceed OAM budget. Prefer tilemap-based enemies.")
+                elif ent_count > 8:
+                    warnings.append(f"Hardware warning: {ent_count} entities may hit 10-per-scanline limit.")
+            if "assets" in data and isinstance(data["assets"], list):
+                sprite_assets = [a for a in data["assets"] if isinstance(a, dict) and a.get("type") == "sprite"]
+                if len(sprite_assets) > 16:
+                    errors.append(f"Hardware violation: {len(sprite_assets)} sprite assets risk OAM exhaustion (40 total).")
+            # Log warnings but don't fail
+            for w in warnings:
+                print(f"[VAL][HW-WARN] {w}", flush=True)
+        return len(errors) == 0, errors
+
     def validate_all(self, data: Any, schema: str, state: Any) -> tuple[bool, list[str]]:
         print(f"[VAL] 다단계 검증 시작 (schema={schema})", flush=True)
         all_errors: list[str] = []
@@ -124,5 +149,8 @@ class ValidationPipeline:
         ok4, errs4 = self.validate_graph(state)
         print(f"[VAL] 4) 그래프검증: {'OK' if ok4 else 'FAIL'} ({len(errs4)} errors)", flush=True)
         all_errors.extend(errs4)
+        ok5, errs5 = self.validate_hardware(data)
+        print(f"[VAL] 5) 하드웨어제약검증: {'OK' if ok5 else 'FAIL'} ({len(errs5)} errors)", flush=True)
+        all_errors.extend(errs5)
         print(f"[VAL] 검증 완료: {'ALL OK' if len(all_errors) == 0 else f'{len(all_errors)} errors'}", flush=True)
         return len(all_errors) == 0, all_errors
