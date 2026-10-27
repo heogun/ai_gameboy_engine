@@ -29,12 +29,23 @@ GAME BOY HARDWARE CONSTRAINTS (MANDATORY):
 - Background: Usually a single tilemap. Be conservative with tile usage.
 - DMG (Game Boy): 4 shades of gray. Limited color capability.
 - Game Boy Color: Up to 8 background palettes and 8 object palettes, 4 colors per palette (15-bit RGB). Do not exceed 4 colors per palette conceptually.
+- VRAM: ~8KB total shared by background tiles, sprite tiles and tilemaps. Reuse existing tiles whenever possible.
+- WRAM: DMG ~8KB, CGB ~32KB. Keep flags/counters minimal.
+- ROM/BANKING: Data may be placed in banked ROM via MBC. Avoid duplicating identical data.
 - Tiles: Background and sprite tiles share VRAM in practice. Avoid excessive tile counts.
 - Window layer: Only use if explicitly justified. Do not assume free window usage.
 - Scrolling: Account for 160x144 viewport. Keep entities within reasonable visible ranges.
 - Banking: Large datasets may require MBC banking. Keep data compact and minimal.
 - Do NOT use 16x16 sprites unless strictly necessary and justified.
 - Coordinates must be within safe visible/playable ranges.
+
+KOREAN TEXT SUPPORT:
+- Korean (Hangul) dialogue/text is ALLOWED if the user request is in Korean.
+- Write natural, short Korean lines for NPCs/events/dialogue (fit 16-18 characters per line).
+- Prefer concise Korean over long paragraphs. Break long sentences into short lines.
+- Do NOT generate font tiles, bitmaps or font code. Only generate text.
+- The harness will extract used Hangul and generate a minimal 8x8 subset font automatically using a bundled 8x8 Hangul base.
+- Use window-layer friendly short lines.
 
 RULES:
 - Output raw JSON only, no markdown, no explanation.
@@ -44,6 +55,8 @@ RULES:
 - If unsure, create minimal valid data that satisfies references.
 - Keep everything data-only.
 - Avoid placing many entities that would become sprites. Prefer static tilemap elements.
+- Keep dialogue text short. Avoid long walls of text.
+- Prefer reusing existing maps/npcs/dialogs over creating new ones unnecessarily.
 """.strip()
 
 

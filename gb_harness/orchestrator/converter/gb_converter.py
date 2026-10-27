@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from ...korean import KoreanSubsetBuilder, inject_korean_support
 from ..validator_hardware import HardwareValidator
 
 
@@ -23,6 +24,18 @@ class GBDataConverter:
     def convert(self) -> dict[str, Path]:
         print("[CONV] 오케스트레이션 데이터 변환 시작", flush=True)
         state = self.load_state()
+        try:
+            kb = KoreanSubsetBuilder(self.output_dir)
+            kres = kb.build(state)
+            if kres:
+                print(f"[CONV][KOR] 서브셋: {kres['count']}자 -> {kres['meta']}", flush=True)
+            else:
+                print("[CONV][KOR] 한글 사용 없음", flush=True)
+            injected = inject_korean_support(self.output_dir)
+            if injected:
+                print(f"[CONV][KOR] 템플릿 주입: {[p.name for p in injected]}", flush=True)
+        except Exception as e:
+            print(f"[CONV][KOR][WARN] {e}", flush=True)
         print("[CONV] 하드웨어 엄밀 검증 실행", flush=True)
         ok, errors, warnings = self.validator.validate(state)
         self.converter_dir.mkdir(parents=True, exist_ok=True)
@@ -54,7 +67,7 @@ class GBDataConverter:
 
         print(f"[CONV] 생성: {maps_c.name}, {npcs_c.name}, {dialogs_c.name}, {events_c.name}, {assets_c.name}, {header_h.name}", flush=True)
         print("[CONV] 변환 완료", flush=True)
-        return {
+        result = {
             "hardware_report": hw_report,
             "maps_c": maps_c,
             "npcs_c": npcs_c,
@@ -63,6 +76,13 @@ class GBDataConverter:
             "assets_c": assets_c,
             "header_h": header_h,
         }
+        kor_meta = self.output_dir / "korean" / "korean_subset.json"
+        if kor_meta.is_file():
+            result["korean_subset_json"] = kor_meta
+        kor_tiles = self.output_dir / "korean" / "font_korean_tiles.bin"
+        if kor_tiles.is_file():
+            result["korean_tiles_bin"] = kor_tiles
+        return result
 
     def _gen_header(self, state: dict[str, Any]) -> str:
         return (

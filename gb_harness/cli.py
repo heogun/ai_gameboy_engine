@@ -9,6 +9,7 @@ from pathlib import Path
 from .client import GenerationError, generate_image, request_spec
 from .generator import build_rom, generate_asset_sources, run_emulator, write_project
 from .guide import write_guide
+from .korean import KoreanSubsetBuilder, extract_used_hangul, inject_korean_support
 from .orchestrator import GBDataConverter, Orchestrator
 from .prompt import GBC_SYSTEM_PROMPT, SYSTEM_PROMPT
 from .schema import SpecValidationError, validate_spec
@@ -69,6 +70,18 @@ def build_parser(default_platform: str = "gb") -> argparse.ArgumentParser:
         "--orchestrate-convert",
         action="store_true",
         help="Convert orchestrator_state.json to Game Boy data with strict hardware validation.",
+    )
+    parser.add_argument(
+        "--korean",
+        action="store_true",
+        default=True,
+        help="Enable Korean Hangul subset font support (default: on).",
+    )
+    parser.add_argument(
+        "--no-korean",
+        dest="korean",
+        action="store_false",
+        help="Disable Korean Hangul subset font support.",
     )
     parser.add_argument(
         "--generate-images",
@@ -172,6 +185,22 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
             return orch.run()
 
         if args.orchestrate_convert:
+            if getattr(args, "korean", True):
+                try:
+                    state_path_c = args.output / "orchestrator_state.json"
+                    if state_path_c.is_file():
+                        state_c = json.loads(state_path_c.read_text(encoding="utf-8"))
+                        kb = KoreanSubsetBuilder(args.output)
+                        res = kb.build(state_c)
+                        if res:
+                            print(f"[KOR] 한글 서브셋 생성: {res['count']}자 -> {res['meta']}", flush=True)
+                        else:
+                            print("[KOR] 한글 사용 없음 (서브셋 생성 생략)", flush=True)
+                    injected = inject_korean_support(args.output)
+                    if injected:
+                        print(f"[KOR] 한글 텍스트 템플릿 주입: {[p.name for p in injected]}", flush=True)
+                except Exception as e:
+                    print(f"[KOR][WARN] 한글 처리 중 오류: {e}", flush=True)
             conv = GBDataConverter(args.output, args.platform)
             result = conv.convert()
             if "maps_c" not in result:

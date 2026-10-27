@@ -21,6 +21,7 @@ class HardwareValidator:
         self._validate_tiles(state)
         self._validate_maps(state)
         self._validate_dialogs(state)
+        self._validate_korean_font(state)
         ok = len(self.errors) == 0
         return ok, self.errors, self.warnings
 
@@ -146,3 +147,44 @@ class HardwareValidator:
         if total > 2000:
             self.warnings.append(f"[DIALOG] {total} chars total. Consider compression/conciseness.")
         print(f"[HW] Dialog check: {len(dialogs)} entries, {total} chars", flush=True)
+
+    def _validate_korean_font(self, state: dict[str, Any]):
+        import re
+        HANGUL_RE = re.compile(r"[가-힣]")
+        used = set()
+        for d in state.get("dialogs", {}).values():
+            if isinstance(d, dict):
+                text_list = d.get("text")
+                if isinstance(text_list, list):
+                    for t in text_list:
+                        if isinstance(t, str):
+                            used.update(HANGUL_RE.findall(t))
+                elif isinstance(text_list, str):
+                    used.update(HANGUL_RE.findall(text_list))
+        for e in state.get("events", {}).values():
+            if isinstance(e, dict):
+                text_list = e.get("text")
+                if isinstance(text_list, list):
+                    for t in text_list:
+                        if isinstance(t, str):
+                            used.update(HANGUL_RE.findall(t))
+                elif isinstance(text_list, str):
+                    used.update(HANGUL_RE.findall(text_list))
+        for npc in state.get("npcs", {}).values():
+            if isinstance(npc, dict):
+                text_list = npc.get("dialogue")
+                if isinstance(text_list, list):
+                    for t in text_list:
+                        if isinstance(t, str):
+                            used.update(HANGUL_RE.findall(t))
+                elif isinstance(text_list, str):
+                    used.update(HANGUL_RE.findall(text_list))
+        if used:
+            cnt = len(used)
+            print(f"[HW] Korean subset: {cnt} characters used (8x8 tiles)", flush=True)
+            if cnt > 96:
+                self.warnings.append(f"[KOREAN] {cnt} Hangul chars. Uses more BG/OBJ tiles (8KB VRAM shared).")
+            if cnt > 128:
+                self.errors.append(f"[KOREAN] {cnt} Hangul chars exceed safe subset budget for limited VRAM. Shorten dialogue or reduce unique Hangul.")
+        else:
+            print("[HW] Korean subset: none used", flush=True)
