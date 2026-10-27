@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gbdk-game-harness"
+version = "0.1.0"
+description = "Generate GBDK-2020 Game Boy game scaffolds from natural-language requests"
+requires-python = ">=3.9"
+dependencies = ["Pillow>=10.0"]
+
+[project.scripts]
+gb-harness = "gb_harness.cli:main"
+gbc-harness = "gb_harness.cli:main_gbc"
+
+[tool.setuptools.packages.find]
+include = ["gb_harness*", "gbc_harness*"]
