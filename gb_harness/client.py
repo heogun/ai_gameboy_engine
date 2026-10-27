@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import base64
 import binascii
+import os
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -22,7 +23,18 @@ def generate_image(
     model: str = "gpt-image-1",
     base_url: str = "https://api.openai.com/v1",
     timeout: float = 180,
+    backend: str | None = None,
+    image_backend: str | None = None,
 ) -> None:
+    backend_resolved = (image_backend or backend or os.environ.get("IMAGE_BACKEND") or "openai").lower()
+
+    if backend_resolved == "ideogram":
+        ideogram_key = api_key or os.environ.get("IDEOGRAM_API_KEY")
+        if not ideogram_key:
+            raise GenerationError("Set IDEOGRAM_API_KEY to generate images with Ideogram.")
+        _generate_image_ideogram(prompt, output_path, ideogram_key, timeout)
+        return
+
     if not api_key:
         raise GenerationError("Set an API key to generate images with the image backend.")
     url = base_url.rstrip("/") + "/images/generations"
@@ -58,6 +70,59 @@ def generate_image(
         image_bytes = base64.b64decode(encoded_image, validate=True)
     except (json.JSONDecodeError, KeyError, IndexError, TypeError, binascii.Error) as error:
         raise GenerationError("The image API returned an unexpected response.") from error
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(image_bytes)
+
+
+def _generate_image_ideogram(
+    prompt: str,
+    output_path: Path,
+    api_key: str,
+    timeout: float = 180,
+) -> None:
+    url = "https://api.ideogram.ai/generate"
+    payload = {
+        "image_request": {
+            "prompt": prompt,
+            "aspect_ratio": "1x1",
+            "model": "V_2",
+            "magic_prompt_option": "AUTO",
+            "style_type": "GENERAL",
+        }
+    }
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Api-Key": api_key,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            response_body = response.read().decode("utf-8")
+    except urllib.error.HTTPError as error:
+        details = error.read().decode("utf-8", errors="replace")
+        raise GenerationError(
+            f"Ideogram API returned HTTP {error.code}: {details[:1000]}"
+        ) from error
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise GenerationError(f"Could not reach Ideogram API: {error}") from error
+
+    try:
+        envelope = json.loads(response_body)
+        image_url = envelope["data"][0]["url"]
+    except (json.JSONDecodeError, KeyError, IndexError, TypeError) as error:
+        raise GenerationError("The Ideogram API returned an unexpected response shape.") from error
+
+    try:
+        img_req = urllib.request.Request(image_url, method="GET")
+        with urllib.request.urlopen(img_req, timeout=timeout) as response:
+            image_bytes = response.read()
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise GenerationError(f"Could not download image from Ideogram: {error}") from error
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(image_bytes)
 

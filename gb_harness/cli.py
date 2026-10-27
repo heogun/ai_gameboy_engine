@@ -57,6 +57,12 @@ def build_parser(default_platform: str = "gb") -> argparse.ArgumentParser:
         help=f"Image generation model (default: {DEFAULT_IMAGE_MODEL}).",
     )
     parser.add_argument(
+        "--image-backend",
+        choices=("openai", "ideogram"),
+        default=os.environ.get("IMAGE_BACKEND", "openai"),
+        help="Image generation backend (default: openai). Use 'ideogram' for pixel art.",
+    )
+    parser.add_argument(
         "--guide",
         action="store_true",
         help="Generate spec + asset prompts + GUIDE.md only (skip image generation/build/run).",
@@ -154,10 +160,15 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
         return 2
 
     api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("GB_API_KEY")
+    ideogram_key = os.environ.get("IDEOGRAM_API_KEY")
     existing_spec = (args.build or args.run) and (args.output / "game_spec.json").is_file()
 
     if not api_key and (args.generate_images or not existing_spec or args.orchestrate):
         print("Error: set OPENROUTER_API_KEY to generate the game specification.", file=sys.stderr)
+        return 2
+
+    if args.generate_images and getattr(args, "image_backend", "openai") == "ideogram" and not ideogram_key and not api_key:
+        print("Error: set IDEOGRAM_API_KEY to generate images with Ideogram.", file=sys.stderr)
         return 2
 
     if args.guide and not api_key and not existing_spec:
@@ -270,7 +281,12 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
                         "using 15-bit RGB colors."
                     )
                 generate_image(
-                    image_prompt, image_path, api_key, args.image_model, args.api_base_url
+                    image_prompt,
+                    image_path,
+                    api_key,
+                    args.image_model,
+                    args.api_base_url,
+                    image_backend=args.image_backend,
                 )
                 print(f"Generated image: {image_path}")
 
