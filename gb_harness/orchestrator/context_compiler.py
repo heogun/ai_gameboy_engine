@@ -34,6 +34,7 @@ class ContextCompiler:
             base["existing"] = {"maps": self.state.data.get("maps", {})}
         elif task_id == "dialogs":
             base["existing"] = {"npcs": self.state.data.get("npcs", {})}
+            base["available_npc_ids"] = list(self.state.data.get("npcs", {}).keys())
         elif task_id == "events":
             base["existing"] = {
                 "maps": self.state.data.get("maps", {}),
@@ -41,6 +42,7 @@ class ContextCompiler:
                 "dialogs": self.state.data.get("dialogs", {}),
                 "warps": self.state.data.get("warps", {}),
             }
+            base["available_npc_ids"] = list(self.state.data.get("npcs", {}).keys())
         elif task_id == "assets_prompts":
             base["existing"] = {
                 "maps": self.state.data.get("maps", {}),
@@ -49,9 +51,10 @@ class ContextCompiler:
             }
         else:
             base["existing"] = {k: self.state.data.get(k) for k in ["maps", "npcs", "entities", "assets"] if self.state.data.get(k)}
+            base["available_npc_ids"] = list(self.state.data.get("npcs", {}).keys())
 
         base["symbols"] = self.registry.export()["symbols"]
-        print(f"[CTX] 컨텍스트 컴파일 완료: symbols={len(base['symbols'])}, existing_keys={list(base['existing'].keys())}", flush=True)
+        print(f"[CTX] 컨텍스트 컴파일 완료: symbols={len(base['symbols'])}, existing_keys={list(base['existing'].keys())}, available_npc_ids={base.get('available_npc_ids',[])}", flush=True)
         return base
 
     def _constraints(self) -> dict[str, Any]:

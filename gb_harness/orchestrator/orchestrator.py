@@ -47,6 +47,14 @@ KOREAN TEXT SUPPORT:
 - The harness will extract used Hangul and generate a minimal 8x8 subset font automatically using a bundled 8x8 Hangul base.
 - Use window-layer friendly short lines.
 
+STRICT REFERENCE RULES:
+- ONLY use npc_id that EXIST in context.existing.npcs or context.available_npc_ids.
+- DO NOT invent new npc_id when generating dialogs.
+- If context.existing.npcs is empty or has no usable NPCs, DO NOT create dialogs that reference any npc_id. Create empty dialogs list or minimal data without NPC references.
+- NEVER guess IDs. Use EXACTLY the IDs from the provided context.
+- For dialogs task: check available_npc_ids FIRST. Only reference those exact IDs.
+- All references (npc_id, map_id, dialog_id, warp_id) MUST exist in the provided context symbols/existing data.
+
 RULES:
 - Output raw JSON only, no markdown, no explanation.
 - Use short, valid C identifiers for ids.
@@ -142,7 +150,9 @@ class Orchestrator:
 
             if not ok:
                 print(f"[ORCH][ERR] 검증 최종 실패: {errs}", flush=True)
-                break
+                print("[ORCH] 오케스트레이션 중단 (부분적으로만 생성됨)", flush=True)
+                self._write_summary()
+                return 1
 
             print("[ORCH] 결과 적용 중...", flush=True)
             self._apply_result(task_id, result)
@@ -159,18 +169,26 @@ class Orchestrator:
         return 0
 
     def _build_task_prompt(self, task: dict[str, Any], ctx: dict[str, Any]) -> str:
+        npc_ids = ctx.get("available_npc_ids") or []
+        npc_list = ", ".join(npc_ids) if npc_ids else "(NONE)"
         return (
             f"Generate data for task: {task['id']} (schema: {task['schema']})\n\n"
+            f"AVAILABLE_NPC_IDS: {npc_list}\n\n"
             f"CONTEXT:\n{json.dumps(ctx, ensure_ascii=False, indent=2)}\n\n"
+            f"CRITICAL: If task is dialogs, you MUST only use npc_id from AVAILABLE_NPC_IDS. If AVAILABLE_NPC_IDS is (NONE), do NOT reference any npc_id.\n\n"
             f"Return ONLY JSON matching this task schema."
         )
 
     def _build_repair_prompt(self, task: dict[str, Any], ctx: dict[str, Any], bad: Any, errs: list[str]) -> str:
+        npc_ids = ctx.get("available_npc_ids") or []
+        npc_list = ", ".join(npc_ids) if npc_ids else "(NONE)"
         return (
             f"Fix the previous JSON for task: {task['id']} (schema: {task['schema']})\n\n"
+            f"AVAILABLE_NPC_IDS: {npc_list}\n\n"
             f"ERRORS:\n{json.dumps(errs, ensure_ascii=False, indent=2)}\n\n"
             f"PREVIOUS:\n{json.dumps(bad, ensure_ascii=False, indent=2)}\n\n"
             f"CONTEXT:\n{json.dumps(ctx, ensure_ascii=False, indent=2)}\n\n"
+            f"CRITICAL: dialogs MUST only reference npc_id from AVAILABLE_NPC_IDS. Do not invent new npc_id.\n\n"
             f"Return corrected JSON only."
         )
 
