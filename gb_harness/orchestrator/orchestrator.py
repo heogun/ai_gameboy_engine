@@ -91,6 +91,9 @@ class Orchestrator:
             print(f"[ORCH] 기존 요청 불러옴: {self.state.get('request')}", flush=True)
 
         completed = set(self.state.get("completed_tasks") or [])
+        if completed:
+            print(f"[ORCH] 재개 모드 감지: {len(completed)}/{len(self.task_graph.tasks)} 작업 완료됨", flush=True)
+            print(f"[ORCH] 미완료 작업부터 이어서 진행합니다...", flush=True)
         print(f"[ORCH] 완료된 작업: {sorted(list(completed)) or '[]'}", flush=True)
         print(f"[ORCH] 태스크 그래프: {[t['id'] for t in self.task_graph.tasks]}", flush=True)
         max_iterations = 50

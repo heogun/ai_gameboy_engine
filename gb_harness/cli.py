@@ -67,6 +67,11 @@ def build_parser(default_platform: str = "gb") -> argparse.ArgumentParser:
         help="Use engine-fixed orchestration: chunked data generation with validation pipeline.",
     )
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume from existing orchestrator_state.json if present.",
+    )
+    parser.add_argument(
         "--orchestrate-convert",
         action="store_true",
         help="Convert orchestrator_state.json to Game Boy data with strict hardware validation.",
@@ -181,6 +186,11 @@ def run_cli(argv: list[str] | None = None, default_platform: str = "gb") -> int:
 
     try:
         if args.orchestrate:
+            state_path_resume = args.output / "orchestrator_state.json"
+            if state_path_resume.is_file():
+                print("[ORCH] 기존 orchestrator_state.json 감지 -> 재개 모드", flush=True)
+            elif args.resume:
+                print("[ORCH] --resume 지정되었지만 orchestrator_state.json 없음 -> 새로 시작", flush=True)
             orch = Orchestrator(args, args.output)
             return orch.run()
 
