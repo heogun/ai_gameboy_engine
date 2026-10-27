@@ -14,7 +14,7 @@ from .schema import SpecValidationError, validate_spec
 
 
 DEFAULT_API_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "deepseek/deepseek-chat-v3-0324:free"
+DEFAULT_MODEL = "google/gemma-3-27b-it:free"
 DEFAULT_IMAGE_MODEL = "gpt-image-1"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_EMULATOR = str(
